@@ -1,24 +1,7 @@
 # Function takes in two vectors and returns 2x2 table
 # for disease ("Y" or "N") vs word occurrence ("1" vs "0")
 getTable <- function(wordOccurrences, diseasePresence) {
-  result <- table(wordOccurrences, diseasePresence)
-  if(length(result)==4) {
-    result
-  } else {
-    # Accounts for missing data values
-    N0 <- 0
-    N1 <- 0
-    Y0 <- 0
-    Y1 <- 0
-    if("N" %in% diseasePresence && "0" %in% wordOccurrences) N0 <- result["0", "N"]
-    if("Y" %in% diseasePresence && "0" %in% wordOccurrences) Y0 <- result["0", "Y"]
-    if("N" %in% diseasePresence && "1" %in% wordOccurrences) N1 <- result["1", "N"]
-    if("Y" %in% diseasePresence && "1" %in% wordOccurrences) Y1 <- result["1", "Y"]
-    result <- matrix(c(N0,Y0,N1,Y1),ncol=2,byrow=TRUE)
-    rownames(result) <- c("0","1")
-    colnames(result) <- c("N", "Y")
-    result <- as.table(result)
-  }
+  result <- table(factor(wordOccurrences, levels=c("0", "1")), factor(diseasePresence, levels=c("N", "Y")))
 }
 
 # Function which takes in a 2x2 table for a given word/disease pair
@@ -28,6 +11,8 @@ termFreqDiff <- function(table) {
   probWordGivenNoDisease <- table["1","N"]
   result <- probWordGivenDisease - probWordGivenNoDisease
 }
+
+
 
 # Takes in a 2x2 table for a given word/disease pair
 # and returns the information gain
