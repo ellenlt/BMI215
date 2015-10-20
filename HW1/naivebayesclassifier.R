@@ -1,24 +1,3 @@
-setwd("/Users/ellen/BMI215/HW1")
-getwd()
-library(plyr)
-
-trainingData <- read.csv("./training.csv", header=TRUE, as.is=TRUE)
-testData <- read.csv("./test.csv", header=TRUE, as.is=TRUE)
-diseaseName <- "Obesity"
-wordsInVocab <<- 10582
-
-trainingDataFrame <- csvToDf(trainingData, diseaseName)
-model <- trainModel(diseaseName, trainingDataFrame)
-
-trainingDataPredictions <- useModel(diseaseName, trainingDataFrame, model)
-trainingDataAnswers <- trainingDataFrame[,diseaseName]
-trainingError <- evaluateModel(trainingDataPredictions, trainingDataAnswers)
-trainingError
-
-testDataFrame <- csvToDf(testData, diseaseName)
-predictions <- useModel(diseaseName, testDataFrame, model)
-answers <- testDataFrame[,diseaseName]
-
 # evaluateModel
 # Input: Vector of predictions and vector of answers
 # Output: Error rate
@@ -40,7 +19,7 @@ useModel <- function(disease, data, model) {
     logProbNoDisease <- 0
     for(w in 1:wordsInVocab) {
       if(data[i,w]==1) {
-        logProbNoDisease <- logProbDisease + model[1,w]
+        logProbNoDisease <- logProbNoDisease + model[1,w]
         logProbDisease <- logProbDisease + model[2,w]
       }
     }
@@ -104,25 +83,42 @@ generateCondProbs <- function(counts, data) {
   
   condProbs <- counts
   condProbs[,diseaseName] <- NULL
-  condProbs[1,] <- ((condProbs[1,]+1)/(wordsPerClass[1]+length(condProbs[,1])))*probNoDisease
-  condProbs[2,] <- (condProbs[2,]+1)/(wordsPerClass[2]+length(condProbs[,1]))*probDisease
-  condProbs <- log(condProbs)
+  if(LaPlace==TRUE) {
+    condProbs[1,] <- log10((condProbs[1,]+1)/(wordsPerClass[1]+length(condProbs[1,]))) + log10(probNoDisease)
+    condProbs[2,] <- log10((condProbs[2,]+1)/(wordsPerClass[2]+length(condProbs[1,]))) + log10(probDisease)    
+  } else {
+    condProbs[1,] <- log10((condProbs[1,])/(wordsPerClass[1])) + log10(probNoDisease)
+    condProbs[2,] <- log10((condProbs[2,])/(wordsPerClass[2])) + log10(probDisease)
+  }
   condProbs
 }
 
 sample <- trainingDataFrame[1:20,1:20]
 sampleCounts <- generateCounts(diseaseName, sample)
-sampleProbs <- generateCondProbs(sampleCounts, sample)
-sampleWordsPerClass <- rowSums(sampleCounts[2:length(sampleCounts)])
-sampleWordsPerClass[1]
-sampleProbDisease <- sum(sample[,1]=="Y")/length(sample[,1])
-sampleProbNoDisease <- sum(sample[,1]=="N")/length(sample[,1])
-sampleCondProbs <- sampleCounts
-sampleCondProbs[,diseaseName] <- NULL
-sampleCondProbs[1,] <- (sampleCondProbs[1,]+1)/(sampleWordsPerClass[1]+length(sampleCondProbs[1,]))*sampleProbNoDisease
-sampleCondProbs[2,] <- (sampleCondProbs[2,]+1)/(sampleWordsPerClass[2]+length(sampleCondProbs[1,]))*sampleProbDisease
-sampleCondProbs[1,] <- log(sampleCondProbs[1,])
-sampleCondProbs
+#sampleProbs <- generateCondProbs(sampleCounts, sample)
 
 zero <- function(x) sum(x == 0)
 
+setwd("/Users/ellen/BMI215/HW1")
+getwd()
+library(plyr)
+
+trainingData <- read.csv("./training.csv", header=TRUE, as.is=TRUE)
+testData <- read.csv("./test.csv", header=TRUE, as.is=TRUE)
+diseaseName <- "Obesity"
+wordsInVocab <<- 10582
+# If set to TRUE, will use LaPlace smoothing to calculate probs
+LaPlace <<- F
+
+trainingDataFrame <- csvToDf(trainingData, diseaseName)
+model <- trainModel(diseaseName, trainingDataFrame)
+trainingDataPredictions <- useModel(diseaseName, trainingDataFrame[,2:length(trainingDataFrame)], model)
+trainingDataAnswers <- trainingDataFrame[,diseaseName]
+trainingError <- evaluateModel(trainingDataPredictions, trainingDataAnswers)
+trainingError
+
+testDataFrame <- csvToDf(testData, diseaseName)
+testDataPredictions <- useModel(diseaseName, testDataFrame, model)
+testDataAnswers <- testDataFrame[,diseaseName]
+testError <- evaluateModel(testDataPredictions, testDataAnswers)
+testError
