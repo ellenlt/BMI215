@@ -7,12 +7,10 @@ getTable <- function(wordOccurrences, diseasePresence) {
 # Function which takes in a 2x2 table for a given word/disease pair
 # and returns the term frequency difference
 termFreqDiff <- function(table) {
-  probWordGivenDisease <- table["1","Y"]
-  probWordGivenNoDisease <- table["1","N"]
+  probWordGivenDisease <- table["1","Y"]/(sum(table[,"Y"]))
+  probWordGivenNoDisease <- table["1","N"]/(sum(table[,"N"]))
   result <- probWordGivenDisease - probWordGivenNoDisease
 }
-
-
 
 # Takes in a 2x2 table for a given word/disease pair
 # and returns the information gain
