@@ -1,3 +1,7 @@
+setwd("/Users/ellen/BMI215/HW1")
+getwd()
+library(plyr)
+
 # evaluateModel
 # Input: Vector of predictions and vector of answers
 # Output: Error rate
@@ -23,6 +27,8 @@ useModel <- function(disease, data, model) {
         logProbDisease <- logProbDisease + model[2,w]
       }
     }
+    logProbNoDisease <- logProbNoDisease + log10(probNoDisease)
+    logProbDisease <- logProbDisease + log10(probDisease)
     if(logProbDisease > logProbNoDisease) {
       result[i] = "Y"
     } else {
@@ -78,37 +84,29 @@ generateCounts <- function(disease, data) {
 # log(P(w=0|D)P(D)) for D = No and Yes, respectively. One column per word w.
 generateCondProbs <- function(counts, data) {
   wordsPerClass <- rowSums(counts[2:length(counts)])
-  probDisease <- sum(data[,1]=="Y")/length(data[,1])
-  probNoDisease <- sum(data[,1]=="N")/length(data[,1])
+  probDisease <<- sum(data[,1]=="Y")/length(data[,1])
+  probNoDisease <<- sum(data[,1]=="N")/length(data[,1])
   
   condProbs <- counts
   condProbs[,diseaseName] <- NULL
   if(LaPlace==TRUE) {
-    condProbs[1,] <- log10((condProbs[1,]+1)/(wordsPerClass[1]+length(condProbs[1,]))) + log10(probNoDisease)
-    condProbs[2,] <- log10((condProbs[2,]+1)/(wordsPerClass[2]+length(condProbs[1,]))) + log10(probDisease)    
+    condProbs[1,] <- log10((condProbs[1,]+1)/(wordsPerClass[1]+length(condProbs[1,])))
+    condProbs[2,] <- log10((condProbs[2,]+1)/(wordsPerClass[2]+length(condProbs[1,])))
   } else {
-    condProbs[1,] <- log10((condProbs[1,])/(wordsPerClass[1])) + log10(probNoDisease)
-    condProbs[2,] <- log10((condProbs[2,])/(wordsPerClass[2])) + log10(probDisease)
+    condProbs[1,] <- log10((condProbs[1,])/(wordsPerClass[1]))
+    condProbs[2,] <- log10((condProbs[2,])/(wordsPerClass[2]))
   }
   condProbs
 }
 
-sample <- trainingDataFrame[1:20,1:20]
-sampleCounts <- generateCounts(diseaseName, sample)
-#sampleProbs <- generateCondProbs(sampleCounts, sample)
-
 zero <- function(x) sum(x == 0)
-
-setwd("/Users/ellen/BMI215/HW1")
-getwd()
-library(plyr)
 
 trainingData <- read.csv("./training.csv", header=TRUE, as.is=TRUE)
 testData <- read.csv("./test.csv", header=TRUE, as.is=TRUE)
 diseaseName <- "Obesity"
 wordsInVocab <<- 10582
 # If set to TRUE, will use LaPlace smoothing to calculate probs
-LaPlace <<- F
+LaPlace <<- T
 
 trainingDataFrame <- csvToDf(trainingData, diseaseName)
 model <- trainModel(diseaseName, trainingDataFrame)
@@ -122,3 +120,4 @@ testDataPredictions <- useModel(diseaseName, testDataFrame, model)
 testDataAnswers <- testDataFrame[,diseaseName]
 testError <- evaluateModel(testDataPredictions, testDataAnswers)
 testError
+
