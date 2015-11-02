@@ -2,6 +2,7 @@ setwd("/Users/ellen/BMI215/HW2")
 library(plyr)
 library(ggplot2)
 
+#REMOVE
 drug=c("chol1","chol2","chol3","chol4","chol5","nchol1","nchol2","nchol3","nchol4","nchol5","chol1","nchol1","nchol1","nchol2","nchol3","nchol4","nchol5")
 event=c("backache","backache","backache","backache","backache","backache","backache","backache","backache","backache","headache","stomachache","stomachache","stomachache","stomachache","stomachache","stomachache")
 freq=c(0.1,0.2,0.3,0.1,0.2,0.3,0.1,0.2,0.3,0.1,0.2,0.3,0.2,0.3,0.1,0.2,0.3)
@@ -50,6 +51,23 @@ filteredAEs
 # Perform three statistical test to determine which adverse events are most enriched/diminished
 # in the response variable (whether or not a cholesterol drug or other drug is known to cause
 # the adverse event)
+
+# Inputs: index i of the event for which we would like to print a contingency table, and the
+#         vector in which the event name can be found
+# Output: 2x2 contingency table for the frequency with which a cholesterol or other drug
+#         occurs with the event
+contingencyTable <- function(i, AEs) {
+  chol <- subset(aeFreqs, event %in% AEs[i] & drug %in% cholDrugs)$freq
+  other <- subset(aeFreqs, event %in% AEs[i] & !drug %in% cholDrugs)$freq
+  # Convert raw event freqs to bins (<=0.01, >0.01)
+  chol[chol<=0.01] <- "freq<=0.01"; chol[chol!="freq<=0.01"] <- "freq>0.01"
+  other[other<=0.01] <- "freq<=0.01"; other[other!="freq<=0.01"] <- "freq>0.01"
+  # Create 2x2 contingency table
+  drugs <- c(rep("cholesterol drugs", length(chol)),rep("other drugs", length(other)))
+  table <- table(factor(drugs, levels=c("cholesterol drugs", "other drugs")), factor(c(chol, other), levels=c("freq>0.01", "freq<=0.01"))) 
+  table
+}
+
 tTest<-data.frame()
 mannWhitney<-data.frame()
 fisher<-data.frame()
@@ -142,22 +160,6 @@ plotMannWhitneyDist(2, F) # for second most diminished
 # Print out contingency tables for top two enriched and top two diminished events
 # used in Fisher's test
 
-# Inputs: index i of the event for which we would like to print a contingency table, and the
-#         vector in which the event name can be found
-# Output: 2x2 contingency table for the frequency with which a cholesterol or other drug
-#         occurs with the event
-contingencyTable <- function(i, AEs) {
-  chol <- subset(aeFreqs, event %in% AEs[i] & drug %in% cholDrugs)$freq
-  other <- subset(aeFreqs, event %in% AEs[i] & !drug %in% cholDrugs)$freq
-  # Convert raw event freqs to bins (<=0.01, >0.01)
-  chol[chol<=0.01] <- "freq<=0.01"; chol[chol!="freq<=0.01"] <- "freq>0.01"
-  other[other<=0.01] <- "freq<=0.01"; other[other!="freq<=0.01"] <- "freq>0.01"
-  # Create 2x2 contingency table
-  drugs <- c(rep("cholesterol drugs", length(chol)),rep("other drugs", length(other)))
-  table <- table(factor(drugs, levels=c("cholesterol drugs", "other drugs")), factor(c(chol, other), levels=c("freq>0.01", "freq<=0.01"))) 
-  table
-}
-
 paste("Contingency Table for",enriched_fisher$event[1])
 print(contingencyTable(1, enriched_fisher$event))
 paste("Contingency Table for",enriched_fisher$event[2])
@@ -193,35 +195,120 @@ for(i in 1:length(top30enrichedAEs)){
 
 # Vector of top 5 events most associated with cholesterol drugs (in either direction) based
 # on Fisher's test
-top5AEs <- filteredAEs[strtoi(row.names(fisher[1:5,]))]
+top5AEsByFisher <- filteredAEs[strtoi(row.names(fisher[1:5,]))]
 
-
-# Dataframe with 6 rows (top 5 events + response variable)
-# and 2574 rows (number of drugs)
-Y <- data.frame(unique(aeFreqs$drug)) # Dataframe of drugs
-glmData = data.frame(Y)
-
-for(i in 1:length(top5AEs)){
-  column <- aeFreqs[aeFreqs$event == top5AEs[i],]
-  column <- merge(Y, column, all=T)
-  glmData[,i+1] <- c(column$freq)
+# Input: 1) Dataframe with at least the following 3 columns:
+#             "drug": drug names (string)
+#             "event": adverse event names (string)
+#             "freq": frequency of co-occurence between a drug and adverse event (float)
+#       2) Vector containing all adverse events (strings)
+#       3) Dataframe column containing all drugs
+#       4) For labeled data, a vector containing all sample names (strings) that should be labeled as positive
+#           If this is an empty list, does not label the data and instead retains a column of drug names.
+# Output: Dataframe with drugs as rows and events as columns,
+#         with a binary output "Y" column
+sampleFeatureFormat <- function(data, events, Y, positives) {
+  result = data.frame(Y)
+  # For each feature, merge a column of frequencies into the data frame
+  for(i in 1:length(events)){
+    column <- data[data$event %in% events[i],]
+    column <- merge(Y, column, all=T)
+    result[,i+1] <- c(column$freq)
+  }
+  names(result)=c("drug", make.names(events))
+  result[is.na(result)] <- 0  # Add zeros for missing values
+  # If positive label names are provided, label
+  # data. Otherwise, retain a column with the drug names
+  if(length(positives)>0) {
+    result$Y[result$drug %in% positives] <- 1
+    result$Y[!result$drug %in% positives] <- 0
+    result$drug <- NULL    
+  }
+  result
 }
-names(glmData)=c("drug", make.names(top5AEs))
-glmData[is.na(glmData)] <- 0
-glmData$Y[glmData$drug %in% cholDrugs] <- 1
-glmData$Y[!glmData$drug %in% cholDrugs] <- 0
-glmData$drug <- NULL
 
-glmModel <- glm(formula = Y ~ RHABDOMYOLYSIS + MUSCULAR.WEAKNESS	+ BLOOD.CREATINE.PHOSPHOKINASE.INCREASED +	BLOOD.TRIGLYCERIDES.INCREASED + MUSCLE.SPASMS, data = glmData, family=binomial(link="logit"))
+Y <- data.frame(drug=unique(aeFreqs$drug)) # Dataframe column of all possible drugs
+trainingData <- sampleFeatureFormat(aeFreqs, top5AEsByFisher, Y, cholDrugs)
+# Build model
+glmModel <- glm(formula = Y ~ RHABDOMYOLYSIS + MUSCULAR.WEAKNESS  + BLOOD.CREATINE.PHOSPHOKINASE.INCREASED +  BLOOD.TRIGLYCERIDES.INCREASED + MUSCLE.SPASMS, data = trainingData, family=binomial(link="logit"))
 summary(glmModel)
-# Training error
-glmTrainingPredictions <- predict(glmModel, se.fit=T)
-# Convert to Y/N
-glmTrainingPredictions$fit[glmTrainingPredictions$fit < 0] <- "N"
-glmTrainingPredictions$fit[glmTrainingPredictions$fit != "N"] <- "Y"
-table(glmTrainingPredictions$fit, trainingData$Obesity)
-# Test error
-glmTestingPredictions <- predict(glmModel, newdata = dfNewX, se.fit=T)
-glmTestingPredictions$fit[glmTestingPredictions$fit < 0] <- "N"
-glmTestingPredictions$fit[glmTestingPredictions$fit != "N"] <- "Y"
-table(glmTestingPredictions$fit, testData$Obesity)
+
+#------------------------------------------------------------------------------------------
+# 2.2 - VALIDATING SIDE-EFFECT PROFILE FOR CHOLESTEROL DRUGS AND AUC CURVE
+#------------------------------------------------------------------------------------------
+# Dataframe with 3 columns:
+# drug - drug names (string)
+# event - name of adverse event (AE) a drug was reported with (string)
+# freq - fraction of reports for the drug that list the event (float)
+aeFreqsRecent <- read.csv("./single_drug_event_frequencies_validation.csv", header=T, as.is=TRUE)
+names(aeFreqsRecent) <- c("drug", "event", "freq")
+Y <- data.frame(drug=unique(aeFreqsRecent$drug)) # Dataframe column of all possible drugs
+testData <- sampleFeatureFormat(aeFreqsRecent, top5AEsByFisher, Y, cholDrugs)
+
+# Vector of probability thresholds above which to classify a sample as positive
+threshold <- c(seq(0,1,by=0.001))
+
+# Predictions
+glmPredictions <- predict(glmModel, newdata = testData, type="response")
+
+# Dataframe where 1st column is TPR and 2nd column is FPR
+rocData <- data.frame()
+
+for(i in 1:length(threshold)) {
+  # Convert fitted probabilities to binary depending on the current threshold
+  predictions <- glmPredictions
+  predictions[predictions > threshold[i]] <- 1
+  predictions[predictions < threshold[i]] <- 0
+  # Compute true positive rate and false positive rate
+  table <- table(factor(predictions, levels=c("0", "1")), factor(testData$Y, levels=c("0", "1")), dnn=c("predicted", "actual")) 
+  tpr <- table["1","1"]/(table["1","1"] + table["0","1"])
+  fpr <- 1 - table["0","0"]/(table["0","0"] + table["1","0"])
+  rocData <- rbind(rocData, c(tpr, fpr))
+}
+names(rocData) <- c("TPR","FPR")
+rocData <- cbind(rocData, threshold)
+
+# Plot receiver operating characteristic curve
+ggplot(data=rocData, aes(x=FPR, y=TPR, group=1)) + geom_line() + geom_point() + ggtitle("ROC Curve")
+
+#------------------------------------------------------------------------------------------
+# 2.3 - AUC
+#------------------------------------------------------------------------------------------
+
+# Inputs: vector of x coordinates, vector of y coordinates
+# Output: area under curve
+auc <- function(x, y) {
+  result <- 0
+  for(p in 1:(length(x)-1)) {
+    y0 <- y[p]
+    x0 <- x[p]
+    y1 <- y[p+1]
+    x1 <- x[p+1]
+    square <- abs(x0-x1)*min(y0,y1)
+    triangle <- (abs(x0-x1)*abs(y0-y1))/2
+    result <- result + square + triangle
+  }  
+  result
+}
+
+# Area under the ROC curve
+aucValue <- auc(rocData$FPR, rocData$TPR)
+
+#------------------------------------------------------------------------------------------
+# 3.1 
+#------------------------------------------------------------------------------------------
+# Read in pair drug data and convert to a samples x features matrix
+pairDrugAeFreqs <- read.csv("./pair_drug_event_frequencies.csv", header=T, as.is=TRUE)
+names(pairDrugAeFreqs) <- c("drug","drug1","drug2","event","freq")
+Y <- data.frame(drug=unique(pairDrugAeFreqs$drug)) # Dataframe column of all possible drugs
+pairDrugData <- sampleFeatureFormat(pairDrugAeFreqs, top5AEsByFisher, Y, c())
+
+# Number of unique drug pairs in the dataset
+nrow(pairDrugData)
+
+# Filter out all non-cholesterol drugs
+pairDrugData <- cbind(ID=rownames(pairDrugData),pairDrugData)
+pairDrugData <- cbind(pairDrugData, data.frame(do.call('rbind', strsplit(as.character(pairDrugData$drug),',',fixed=TRUE))))
+pairDrugData <- pairDrugData[!as.character(pairDrugData$X1) %in% cholDrugs & !as.character(pairDrugData$X2) %in% cholDrugs,]
+# Number of unique non-cholesterol drug pairs
+nrow(pairDrugData)
