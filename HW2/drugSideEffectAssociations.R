@@ -2,12 +2,22 @@ setwd("/Users/ellen/BMI215/HW2")
 library(plyr)
 library(ggplot2)
 
-#REMOVE
-drug=c("chol1","chol2","chol3","chol4","chol5","nchol1","nchol2","nchol3","nchol4","nchol5","chol1","nchol1","nchol1","nchol2","nchol3","nchol4","nchol5")
-event=c("backache","backache","backache","backache","backache","backache","backache","backache","backache","backache","headache","stomachache","stomachache","stomachache","stomachache","stomachache","stomachache")
-freq=c(0.1,0.2,0.3,0.1,0.2,0.3,0.1,0.2,0.3,0.1,0.2,0.3,0.2,0.3,0.1,0.2,0.3)
-aeFreqs = data.frame(drug,event,freq)
-cholDrugs=c("chol1","chol2","chol3","chol4","chol5")
+#------------------------------------------------------------------------------------------
+# GENERAL IDEA
+#------------------------------------------------------------------------------------------
+# The point of this assignment is to build a "side-effect" profile for cholesterol drugs
+# to predict new drug-drug interactions.
+# Broader implication: can identify and study new, potentially dangerous interactions.
+# Can also determine which drug combinations could complicate the symptoms of those
+# with high cholesterol. Finally, can potentially find drug combinations with a similar beneficial
+# effect as a cholesterol drug.
+# Methods:
+# 1) First figure out which adverse events are enriched for cholesterol drugs
+# 2) Use feature selection to identify the 5 most informative adverse events for predicting
+#   whether a drug is a cholesterol drug or not
+# 3) Use model to predict drug-drug interactions causing cholesterol-related effects
+# 4) Inputs are non-cholesterol drugs, so we can be sure that any hits are due to interaction effects
+#    rather than side effects of a known cholesterol drugs in the pair
 
 # Dataframe with 3 columns:
 # drug - drug names (string)
@@ -336,10 +346,10 @@ glmPredictions <- sort(glmPredictions[glmPredictions >= optimalProbThreshold], d
 length(glmPredictions)  # Sanity check - should be ~1700
 
 # Submit list of drug-pairs as tab-delimited file called "ps2_problem3.tsv"
-drugPairMatches <- data.frame(pairDrugData[names(glmPredictions),]$drug, glmPredictions)
-rownames(drugPairMatches) <- NULL
-names(drugPairMatches) <- c("drug", "score")
-write.table(drugPairMatches, file="ps2_problem3.tsv", sep="\t")
+drugPairInteractions <- data.frame(pairDrugData[names(glmPredictions),]$drug, glmPredictions)
+rownames(drugPairInteractions) <- NULL
+names(drugPairInteractions) <- c("drug", "score")
+write.table(drugPairInteractions, file="ps2_problem3.tsv", sep="\t")
 
 #------------------------------------------------------------------------------------------
 # 3.4 - COMPARE OUR RESULTS TO VA'S LIST
@@ -352,10 +362,18 @@ knownInteractions <- within(knownInteractions, drug <- paste(drug1,drug2,sep=','
 
 # Find drug pairs we predicted as interacting to cause cholesterol-drug-like side effects,
 # which also appear in the VA's list of known drug interactions
-results <- drugPairMatches[as.character(drugPairMatches$drug) %in% knownInteractions$drug,]
+results <- drugPairInteractions[as.character(drugPairInteractions$drug) %in% knownInteractions$drug,]
 indices <- c(which(knownInteractions$drug %in% results$drug))
 # List of drug pairs and their severities
 results <- knownInteractions[indices,c("drug","type")]
+
+#------------------------------------------------------------------------------------------
+# 3.5 - EXAMINE EVENT FREQUENCIES
+#------------------------------------------------------------------------------------------
+# Examine event frequencies X1, X2, X3, X4, X5 for top 20 hits
+
+eventFreqsForTopHits<-pairDrugData[pairDrugData$drug %in% drugPairInteractions$drug[1:20],]
+drugPairInteractions$score[1:20]
 
 
 
