@@ -14,7 +14,7 @@ cholDrugs=c("chol1","chol2","chol3","chol4","chol5")
 # event - name of adverse event (AE) a drug was reported with (string)
 # freq - fraction of reports for the drug that list the event (float)
 aeFreqs <- read.csv("./single_drug_event_frequencies.csv", header=T, as.is=TRUE)
-    names(aeFreqs) <- c("drug", "event", "freq")
+names(aeFreqs) <- c("drug", "event", "freq")
 # List/vector of cholesterol drug names (strings)
 cholDrugs <- scan("./cholesterol_drugs.txt", what="ch", sep="\n")
 
@@ -27,7 +27,7 @@ cholAEs <- unique(aeFreqs$event[aeFreqs$drug %in% cholDrugs])
 # Dataframe where 1st column: all AEs reported with a cholesterol drug
 # and 2nd column: # of different cholesterol drugs co-occuring with that AE
 cholAECounts <- count(aeFreqs$event[aeFreqs$drug %in% cholDrugs])
-  names(cholAECounts) <- c("event", "numdrugs")
+names(cholAECounts) <- c("event", "numdrugs")
 # String of AEs that co-occur with at least 5 different cholesterol drugs
 commonCholAEs <- cholAECounts$event[cholAECounts$numdrugs>=5]
 commonCholAEs
@@ -35,7 +35,7 @@ commonCholAEs
 # Dataframe where 1st column: all AEs reported with a non-cholesterol drug
 # and 2nd column: # of different non-cholesterol drugs co-occuring with that AE
 nonCholAECounts <- count(aeFreqs$event[!aeFreqs$drug %in% cholDrugs])
-  names(nonCholAECounts) <- c("event", "numdrugs")
+names(nonCholAECounts) <- c("event", "numdrugs")
 # String of AEs that co-occur with at least 5 different non-cholesterol drugs
 commonNonCholAEs <- nonCholAECounts$event[nonCholAECounts$numdrugs>=5]
 commonNonCholAEs
@@ -78,11 +78,11 @@ for(i in 1:length(filteredAEs)){
   notCholesterol <- subset(aeFreqs, event %in% filteredAEs[i] & !drug %in% cholDrugs)$freq
   
   # Perform t-test and store results
-  result <- t.test(cholesterol, notCholesterol, var.equal=T)
+  result <- t.test(cholesterol, notCholesterol)
   tTest <- rbind(tTest, c(result$p.value, result$estimate[1], result$estimate[2]))
   
-  # Perform Mann-Whitney test
-  result <- wilcox.test(cholesterol, notCholesterol, correct=F)
+  # Perform Mann-Whitney test with Bonferroni Correction
+  result <- wilcox.test(cholesterol, notCholesterol, correct=T)
   mannWhitney <- rbind(mannWhitney, c(result$p.value, median(cholesterol), median(notCholesterol)))
   
   # Perform Fisher's exact test
@@ -100,14 +100,14 @@ names(fisher) = c("pVal","OR")
 # For each of the three tests performed, report the 10 events most enriched for cholesterol drugs
 # as well as the 10 events most diminished for cholesterol drugs, based on lowest p-value
 
-# for student's t-test
+# for student's t-test (assuming unequal variances)
 tTest <- tTest[order(tTest$pVal),]
 enriched_tTest <- tTest[tTest$meanOccurrenceInCholDrugs > tTest$meanOccurrenceInNonCholDrugs,][1:10,]
 enriched_tTest$event <- filteredAEs[strtoi(row.names(enriched_tTest))]
 diminished_tTest <- tTest[tTest$meanOccurrenceInCholDrugs < tTest$meanOccurrenceInNonCholDrugs,][1:10,]
 diminished_tTest$event <- filteredAEs[strtoi(row.names(diminished_tTest))]
 
-# for Mann-Whitney test
+# for Mann-Whitney test (with Bonferroni Correction)
 mannWhitney <- mannWhitney[order(mannWhitney$pVal),]
 enriched_mannWhitney <- mannWhitney[mannWhitney$medianOccurrenceInCholDrugs > mannWhitney$medianOccurrenceInNonCholDrugs,][1:10,]
 enriched_mannWhitney$event <- filteredAEs[strtoi(row.names(enriched_mannWhitney))]
@@ -257,7 +257,7 @@ rocData <- data.frame()
 for(i in 1:length(threshold)) {
   # Convert fitted probabilities to binary depending on the current threshold
   predictions <- glmPredictions
-  predictions[predictions > threshold[i]] <- 1
+  predictions[predictions >= threshold[i]] <- 1
   predictions[predictions < threshold[i]] <- 0
   # Compute true positive rate and false positive rate
   table <- table(factor(predictions, levels=c("0", "1")), factor(testData$Y, levels=c("0", "1")), dnn=c("predicted", "actual")) 
@@ -295,7 +295,7 @@ auc <- function(x, y) {
 aucValue <- auc(rocData$FPR, rocData$TPR)
 
 #------------------------------------------------------------------------------------------
-# 3.1 
+# 3.1 - APPLY MODEL TO NEW DATA: PROCESSING THE NEW DATA
 #------------------------------------------------------------------------------------------
 # Read in pair drug data and convert to a samples x features matrix
 pairDrugAeFreqs <- read.csv("./pair_drug_event_frequencies.csv", header=T, as.is=TRUE)
@@ -307,8 +307,56 @@ pairDrugData <- sampleFeatureFormat(pairDrugAeFreqs, top5AEsByFisher, Y, c())
 nrow(pairDrugData)
 
 # Filter out all non-cholesterol drugs
-pairDrugData <- cbind(ID=rownames(pairDrugData),pairDrugData)
+pairDrugData <- cbind(ID=rownames(pairDrugData),pairDrugData) # Split drug pair into separate columns with name of each drug
 pairDrugData <- cbind(pairDrugData, data.frame(do.call('rbind', strsplit(as.character(pairDrugData$drug),',',fixed=TRUE))))
-pairDrugData <- pairDrugData[!as.character(pairDrugData$X1) %in% cholDrugs & !as.character(pairDrugData$X2) %in% cholDrugs,]
+pairDrugData <- pairDrugData[!as.character(pairDrugData$X1) %in% cholDrugs & !as.character(pairDrugData$X2) %in% cholDrugs,]  #Filter
+
 # Number of unique non-cholesterol drug pairs
 nrow(pairDrugData)
+
+# Clean up dataframe
+pairDrugData$ID <- NULL
+pairDrugData$X1 <- NULL
+pairDrugData$X2 <- NULL
+row.names(pairDrugData) <- NULL
+
+#------------------------------------------------------------------------------------------
+# 3.3 - APPLYING MODEL TO NEW DATA:
+#       FIND DRUG PAIRS THAT MATCH THE SIDE-EFFECT PROFILE OF A CHOLESTEROL DRUG
+#------------------------------------------------------------------------------------------
+# At or above this threshold, classify drug pair as matching side effect profile for cholesterol drugs
+optimalProbThreshold <- 0.009
+
+# Apply logistic model we built in part 2.1 to the new data
+glmPredictions <- predict(glmModel, newdata = pairDrugData, type="response")
+
+# Restrict list to those whose score is greater than the threshold and rank pairs by profile score
+glmPredictions <- glmPredictions[glmPredictions >= optimalProbThreshold]
+glmPredictions <- sort(glmPredictions[glmPredictions >= optimalProbThreshold], decreasing=T)
+length(glmPredictions)  # Sanity check - should be ~1700
+
+# Submit list of drug-pairs as tab-delimited file called "ps2_problem3.tsv"
+drugPairMatches <- data.frame(pairDrugData[names(glmPredictions),]$drug, glmPredictions)
+rownames(drugPairMatches) <- NULL
+names(drugPairMatches) <- c("drug", "score")
+write.table(drugPairMatches, file="ps2_problem3.tsv", sep="\t")
+
+#------------------------------------------------------------------------------------------
+# 3.4 - COMPARE OUR RESULTS TO VA'S LIST
+#------------------------------------------------------------------------------------------
+# List of 3086 known drug-drug interactions; obtained from Veteran's Association Hospital in Tucson, AZ
+knownInteractions <- read.csv("./va_drug_drug_interactions.csv", header=T, as.is=TRUE)
+
+# Merge two drugs into single comma-delimited string for easy comparison
+knownInteractions <- within(knownInteractions, drug <- paste(drug1,drug2,sep=','))
+
+# Find drug pairs we predicted as interacting to cause cholesterol-drug-like side effects,
+# which also appear in the VA's list of known drug interactions
+results <- drugPairMatches[as.character(drugPairMatches$drug) %in% knownInteractions$drug,]
+indices <- c(which(knownInteractions$drug %in% results$drug))
+# List of drug pairs and their severities
+results <- knownInteractions[indices,c("drug","type")]
+
+
+
+
