@@ -1,0 +1,22 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1187\cocoasubrtf400
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs24 \cf0 README for setting up a copy of the mimic2 database.\
+\
+0.  Install postgreSQL and make sure you have at least 75Gb available space for the mimic2 database.\
+1.  Download the definitions and patient files folders from Physionet and unzip them all.\
+2.  Enter postgresql and create a database called 'mimic2'\
+	create database mimic2;\
+3.  Create database schema (e.g. create all tables and columns).  From within your psql mimic2 database enter the following where PATH is the path to the file (e.g. ~/Documents/.../schema_mimic2v26.sql).\
+	\\i PATH/schema_mimic2v26.sql\
+4.  Open file 'importDefinitions_091314.sql' using a text editor and change the PATH to match your PATH.\
+5.  From within mimic2 database in psql enter the following:\
+	\\i PATH/importDefinitions_110713.sql\
+6.  Open and edit file 'fixImportFile.py' so that it will go through the file 'importCode_091314.sql' and change the PATH to match your PATH to the PatientFiles folder.  You can run this code from your terminal if you have Python installed using the following command\
+	python fixImportFile.py infile_name outfile_name\
+7.  From within mimic2 database in psql enter the following to populate your tables (this should take ~10-24 hours):\
+	\\i PATH/importCode_091314.sql\
+}
